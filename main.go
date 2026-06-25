@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
+	"time"
+
+	"github.com/faergeek/pokedex/internal"
 )
 
 type (
@@ -18,8 +20,8 @@ type (
 	}
 
 	config struct {
-		Previous string
-		Next     string
+		client         *internal.Client
+		previous, next string
 	}
 
 	locationAreaResponse struct {
@@ -49,19 +51,17 @@ func commandHelp(config *config) error {
 }
 
 func commandMap(config *config) error {
-	if config.Next == "" {
+	if config.next == "" {
 		return errors.New("Next is empty")
 	}
 
-	res, err := http.Get(config.Next)
+	val, err := config.client.Get(config.next)
 	if err != nil {
-		return nil
+		return err
 	}
-	defer res.Body.Close()
 
 	var data locationAreaResponse
-	decoder := json.NewDecoder(res.Body)
-	if err := decoder.Decode(&data); err != nil {
+	if err := json.Unmarshal(val, &data); err != nil {
 		return err
 	}
 
@@ -69,26 +69,24 @@ func commandMap(config *config) error {
 		fmt.Println(location.Name)
 	}
 
-	config.Next = data.Next
-	config.Previous = data.Previous
+	config.previous = config.next
+	config.next = data.Next
 
 	return nil
 }
 
 func commandMapb(config *config) error {
-	if config.Previous == "" {
+	if config.previous == "" {
 		return errors.New("Previous is empty")
 	}
 
-	res, err := http.Get(config.Previous)
+	val, err := config.client.Get(config.previous)
 	if err != nil {
-		return nil
+		return err
 	}
-	defer res.Body.Close()
 
 	var data locationAreaResponse
-	decoder := json.NewDecoder(res.Body)
-	if err := decoder.Decode(&data); err != nil {
+	if err := json.Unmarshal(val, &data); err != nil {
 		return err
 	}
 
@@ -96,8 +94,8 @@ func commandMapb(config *config) error {
 		fmt.Println(location.Name)
 	}
 
-	config.Next = data.Next
-	config.Previous = data.Previous
+	config.next = config.previous
+	config.previous = data.Previous
 
 	return nil
 }
@@ -106,8 +104,9 @@ var commands = map[string]cliCommand{}
 
 func main() {
 	config := config{
-		Previous: "",
-		Next:     "https://pokeapi.co/api/v2/location-area/?limit=20&offset=0",
+		client:   internal.NewClient(time.Minute),
+		previous: "",
+		next:     "https://pokeapi.co/api/v2/location-area/?offset=0&limit=20",
 	}
 
 	scanner := bufio.NewScanner(os.Stdin)
