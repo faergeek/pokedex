@@ -31,6 +31,10 @@ func TestCleanInput(t *testing.T) {
 			input:    "    \ttabbing  \t tabbing\nand newlining,\there and\rthere, here\nand there",
 			expected: []string{"tabbing", "tabbing", "and", "newlining,", "here", "and", "there,", "here", "and", "there"},
 		},
+		{
+			input:    "  POKEMON MiXEd cASe ",
+			expected: []string{"pokemon", "mixed", "case"},
+		},
 	}
 
 	for _, c := range cases {
