@@ -193,22 +193,37 @@ func commandInspect(state *state, args []string) error {
 	pokemonName := args[0]
 
 	pokemon, caught := state.caughtPokemons[pokemonName]
-	if caught {
-		fmt.Printf("Name: %s\n", pokemon.Name)
-		fmt.Printf("Height: %d\n", pokemon.Height)
-		fmt.Printf("Weight: %d\n", pokemon.Weight)
-
-		fmt.Println("Stats:")
-		for _, stat := range pokemon.Stats {
-			fmt.Printf("  - %s: %d\n", stat.Stat.Name, stat.Base_stat)
-		}
-
-		fmt.Println("Types:")
-		for _, Type := range pokemon.Types {
-			fmt.Printf("  - %s\n", Type.Type.Name)
-		}
-	} else {
+	if !caught {
 		fmt.Println("you have not caught that pokemon")
+		return nil
+	}
+
+	fmt.Printf("Name: %s\n", pokemon.Name)
+	fmt.Printf("Height: %d\n", pokemon.Height)
+	fmt.Printf("Weight: %d\n", pokemon.Weight)
+
+	fmt.Println("Stats:")
+	for _, stat := range pokemon.Stats {
+		fmt.Printf("  - %s: %d\n", stat.Stat.Name, stat.Base_stat)
+	}
+
+	fmt.Println("Types:")
+	for _, Type := range pokemon.Types {
+		fmt.Printf("  - %s\n", Type.Type.Name)
+	}
+
+	return nil
+}
+
+func commandPokedex(state *state, args []string) error {
+	if len(state.caughtPokemons) == 0 {
+		fmt.Println("Your Pokedex is empty :-(")
+		return nil
+	}
+
+	fmt.Println("Your Pokedex:")
+	for _, pokemon := range state.caughtPokemons {
+		fmt.Printf("  - %s\n", pokemon.Name)
 	}
 
 	return nil
@@ -266,6 +281,12 @@ func main() {
 		name:        "inspect",
 		description: "Inspect a caught pokemon",
 		callback:    commandInspect,
+	}
+
+	commands["pokedex"] = cliCommand{
+		name:        "pokedex",
+		description: "Lists all of the caught pokemons",
+		callback:    commandPokedex,
 	}
 
 	for {
