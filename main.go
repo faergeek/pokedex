@@ -45,6 +45,20 @@ type (
 	pokemonDetails struct {
 		Base_experience int
 		Name            string
+		Height, Weight  int
+		Stats           []struct {
+			Base_stat, Effort int
+			Stat              struct {
+				Name, Url string
+			}
+		}
+		Types []struct {
+			Slot int
+			Type struct {
+				Id   int
+				Name string
+			}
+		}
 	}
 )
 
@@ -170,6 +184,36 @@ func commandCatch(state *state, args []string) error {
 	return nil
 }
 
+func commandInspect(state *state, args []string) error {
+	if len(args) != 1 {
+		fmt.Println("Usage: inspect <pokemon-name>")
+		return nil
+	}
+
+	pokemonName := args[0]
+
+	pokemon, caught := state.caughtPokemons[pokemonName]
+	if caught {
+		fmt.Printf("Name: %s\n", pokemon.Name)
+		fmt.Printf("Height: %d\n", pokemon.Height)
+		fmt.Printf("Weight: %d\n", pokemon.Weight)
+
+		fmt.Println("Stats:")
+		for _, stat := range pokemon.Stats {
+			fmt.Printf("  - %s: %d\n", stat.Stat.Name, stat.Base_stat)
+		}
+
+		fmt.Println("Types:")
+		for _, Type := range pokemon.Types {
+			fmt.Printf("  - %s\n", Type.Type.Name)
+		}
+	} else {
+		fmt.Println("you have not caught that pokemon")
+	}
+
+	return nil
+}
+
 var commands = map[string]cliCommand{}
 
 func main() {
@@ -216,6 +260,12 @@ func main() {
 		name:        "catch",
 		description: "Attempt to catch a pokemon",
 		callback:    commandCatch,
+	}
+
+	commands["inspect"] = cliCommand{
+		name:        "inspect",
+		description: "Inspect a caught pokemon",
+		callback:    commandInspect,
 	}
 
 	for {
