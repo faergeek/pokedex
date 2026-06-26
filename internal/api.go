@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"errors"
 	"io"
 	"net/http"
 	"time"
@@ -28,6 +29,10 @@ func (c *Client) Get(url string) ([]byte, error) {
 		return nil, err
 	}
 	defer res.Body.Close()
+
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return nil, errors.New(res.Status)
+	}
 
 	val, err := io.ReadAll(res.Body)
 	if err != nil {

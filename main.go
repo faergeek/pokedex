@@ -16,7 +16,7 @@ type (
 	cliCommand struct {
 		name        string
 		description string
-		callback    func(config *config) error
+		callback    func(config *config, args []string) error
 	}
 
 	config struct {
@@ -24,23 +24,31 @@ type (
 		previous, next string
 	}
 
-	locationAreaResponse struct {
+	locationAreaList struct {
 		Count          int
 		Next, Previous string
 		Results        []struct {
 			Name, Url string
 		}
 	}
+
+	locationAreaDetails struct {
+		Pokemon_encounters []struct {
+			Pokemon struct {
+				Name, Url string
+			}
+		}
+	}
 )
 
-func commandExit(config *config) error {
+func commandExit(config *config, args []string) error {
 	fmt.Println("Closing the Pokedex... Goodbye!")
 	os.Exit(0)
 
 	return nil
 }
 
-func commandHelp(config *config) error {
+func commandHelp(config *config, args []string) error {
 	fmt.Printf("Welcome to the Pokedex!\nUsage:\n\n")
 
 	for key, command := range commands {
@@ -50,7 +58,7 @@ func commandHelp(config *config) error {
 	return nil
 }
 
-func commandMap(config *config) error {
+func commandMap(config *config, args []string) error {
 	if config.next == "" {
 		return errors.New("Next is empty")
 	}
@@ -60,7 +68,7 @@ func commandMap(config *config) error {
 		return err
 	}
 
-	var data locationAreaResponse
+	var data locationAreaList
 	if err := json.Unmarshal(val, &data); err != nil {
 		return err
 	}
@@ -75,7 +83,7 @@ func commandMap(config *config) error {
 	return nil
 }
 
-func commandMapb(config *config) error {
+func commandMapb(config *config, args []string) error {
 	if config.previous == "" {
 		return errors.New("Previous is empty")
 	}
@@ -85,7 +93,7 @@ func commandMapb(config *config) error {
 		return err
 	}
 
-	var data locationAreaResponse
+	var data locationAreaList
 	if err := json.Unmarshal(val, &data); err != nil {
 		return err
 	}
@@ -96,6 +104,31 @@ func commandMapb(config *config) error {
 
 	config.next = config.previous
 	config.previous = data.Previous
+
+	return nil
+}
+
+func commandExplore(config *config, args []string) error {
+	if len(args) != 1 {
+		fmt.Println("Usage: explore <location-area>")
+		return nil
+	}
+
+	locationArea := args[0]
+
+	val, err := config.client.Get(fmt.Sprintf("https://pokeapi.co/api/v2/location-area/%s", locationArea))
+	if err != nil {
+		return err
+	}
+
+	var data locationAreaDetails
+	if err := json.Unmarshal(val, &data); err != nil {
+		return err
+	}
+
+	for _, encounter := range data.Pokemon_encounters {
+		fmt.Println(encounter.Pokemon.Name)
+	}
 
 	return nil
 }
@@ -135,6 +168,12 @@ func main() {
 		callback:    commandMapb,
 	}
 
+	commands["explore"] = cliCommand{
+		name:        "explore",
+		description: "Lists all the pokemons located in the area",
+		callback:    commandExplore,
+	}
+
 	for {
 		fmt.Print("Pokedex > ")
 
@@ -147,7 +186,7 @@ func main() {
 				if !exists {
 					fmt.Println("Unknown command")
 				} else {
-					err := command.callback(&config)
+					err := command.callback(&config, words[1:])
 					if err != nil {
 						fmt.Printf("error: %v\n", err)
 					}
@@ -156,7 +195,7 @@ func main() {
 		} else {
 			err := scanner.Err()
 			if err == nil {
-				commandExit(&config)
+				commandExit(&config, []string{})
 			} else {
 				log.Fatal(err)
 			}
