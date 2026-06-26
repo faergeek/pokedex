@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
 	"time"
 
@@ -16,12 +17,13 @@ type (
 	cliCommand struct {
 		name        string
 		description string
-		callback    func(config *config, args []string) error
+		callback    func(state *state, args []string) error
 	}
 
-	config struct {
+	state struct {
 		client         *internal.Client
 		previous, next string
+		caughtPokemons map[string]pokemonDetails
 	}
 
 	locationAreaList struct {
@@ -39,16 +41,21 @@ type (
 			}
 		}
 	}
+
+	pokemonDetails struct {
+		Base_experience int
+		Name            string
+	}
 )
 
-func commandExit(config *config, args []string) error {
+func commandExit(state *state, args []string) error {
 	fmt.Println("Closing the Pokedex... Goodbye!")
 	os.Exit(0)
 
 	return nil
 }
 
-func commandHelp(config *config, args []string) error {
+func commandHelp(state *state, args []string) error {
 	fmt.Printf("Welcome to the Pokedex!\nUsage:\n\n")
 
 	for key, command := range commands {
@@ -58,12 +65,12 @@ func commandHelp(config *config, args []string) error {
 	return nil
 }
 
-func commandMap(config *config, args []string) error {
-	if config.next == "" {
+func commandMap(state *state, args []string) error {
+	if state.next == "" {
 		return errors.New("Next is empty")
 	}
 
-	val, err := config.client.Get(config.next)
+	val, err := state.client.Get(state.next)
 	if err != nil {
 		return err
 	}
@@ -77,18 +84,18 @@ func commandMap(config *config, args []string) error {
 		fmt.Println(location.Name)
 	}
 
-	config.previous = config.next
-	config.next = data.Next
+	state.previous = state.next
+	state.next = data.Next
 
 	return nil
 }
 
-func commandMapb(config *config, args []string) error {
-	if config.previous == "" {
+func commandMapb(state *state, args []string) error {
+	if state.previous == "" {
 		return errors.New("Previous is empty")
 	}
 
-	val, err := config.client.Get(config.previous)
+	val, err := state.client.Get(state.previous)
 	if err != nil {
 		return err
 	}
@@ -102,13 +109,13 @@ func commandMapb(config *config, args []string) error {
 		fmt.Println(location.Name)
 	}
 
-	config.next = config.previous
-	config.previous = data.Previous
+	state.next = state.previous
+	state.previous = data.Previous
 
 	return nil
 }
 
-func commandExplore(config *config, args []string) error {
+func commandExplore(state *state, args []string) error {
 	if len(args) != 1 {
 		fmt.Println("Usage: explore <location-area>")
 		return nil
@@ -116,7 +123,7 @@ func commandExplore(config *config, args []string) error {
 
 	locationArea := args[0]
 
-	val, err := config.client.Get(fmt.Sprintf("https://pokeapi.co/api/v2/location-area/%s", locationArea))
+	val, err := state.client.Get(fmt.Sprintf("https://pokeapi.co/api/v2/location-area/%s", locationArea))
 	if err != nil {
 		return err
 	}
@@ -133,13 +140,44 @@ func commandExplore(config *config, args []string) error {
 	return nil
 }
 
+func commandCatch(state *state, args []string) error {
+	if len(args) != 1 {
+		fmt.Println("Usage: catch <pokemon-name>")
+		return nil
+	}
+
+	pokemonName := args[0]
+
+	fmt.Printf("Throwing a Pokeball at %s...\n", pokemonName)
+
+	val, err := state.client.Get(fmt.Sprintf("https://pokeapi.co/api/v2/pokemon/%s", pokemonName))
+	if err != nil {
+		return err
+	}
+
+	var data pokemonDetails
+	if err := json.Unmarshal(val, &data); err != nil {
+		return err
+	}
+
+	if rand.Int() > data.Base_experience {
+		fmt.Printf("%s was caught!\n", pokemonName)
+		state.caughtPokemons[pokemonName] = data
+	} else {
+		fmt.Printf("%s escaped!\n", pokemonName)
+	}
+
+	return nil
+}
+
 var commands = map[string]cliCommand{}
 
 func main() {
-	config := config{
-		client:   internal.NewClient(time.Minute),
-		previous: "",
-		next:     "https://pokeapi.co/api/v2/location-area/?offset=0&limit=20",
+	state := state{
+		caughtPokemons: map[string]pokemonDetails{},
+		client:         internal.NewClient(time.Minute),
+		previous:       "",
+		next:           "https://pokeapi.co/api/v2/location-area/?offset=0&limit=20",
 	}
 
 	scanner := bufio.NewScanner(os.Stdin)
@@ -174,6 +212,12 @@ func main() {
 		callback:    commandExplore,
 	}
 
+	commands["catch"] = cliCommand{
+		name:        "catch",
+		description: "Attempt to catch a pokemon",
+		callback:    commandCatch,
+	}
+
 	for {
 		fmt.Print("Pokedex > ")
 
@@ -186,7 +230,7 @@ func main() {
 				if !exists {
 					fmt.Println("Unknown command")
 				} else {
-					err := command.callback(&config, words[1:])
+					err := command.callback(&state, words[1:])
 					if err != nil {
 						fmt.Printf("error: %v\n", err)
 					}
@@ -195,7 +239,7 @@ func main() {
 		} else {
 			err := scanner.Err()
 			if err == nil {
-				commandExit(&config, []string{})
+				commandExit(&state, []string{})
 			} else {
 				log.Fatal(err)
 			}
